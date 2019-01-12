@@ -67,15 +67,15 @@ With the eve app you can view the history for
 
 This plugin supports multiple weather services. Each has it's own advantages. The following table shows a comparison to help you choosing one.
 
-|                            |            Dark Sky (recommended)            |                   OpenWeatherMap                                 |                            Yahoo                                 |                   Weather Underground (legacy)                   |
-|----------------------------|:--------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------:|
-| Current observation values |                      15                      |                                7                                 |                                10                                |                                13                                |
-| Forecast values            |                      16                      |                                9                                |                                4                                  |                                10                                |
-| Forecast days              |                       7                      |                                 5                                |                                 10                               |                                 4                                |
-| Location                   |                geo-coordinates               |                city name, city id, geo-coordinates               |                            city name                             |                         city name or zip                         |
-| Personal weather stations  |                      :x:                     |                        :heavy_check_mark:                        |                                :x:                               |                        :heavy_check_mark:                        |
-| Free                       | :heavy_check_mark:                           |                        :heavy_check_mark:                        |                        :heavy_check_mark:                        | :x: (only legacy accounts)                                       |
-| Register                   | [here](https://darksky.net/dev/register)     | [here](https://openweathermap.org/appid)                         |                    not needed                                    | [here](https://www.wunderground.com/weather/api/) |
+|                            |            Dark Sky (recommended)            |                   OpenWeatherMap                                 |                            Yahoo                                 |                   Weather Underground (legacy)                   |              Meteobridge            |
+|----------------------------|:--------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------:|:-----------------------------------:|
+| Current observation values |                      15                      |                                7                                 |                                10                                |                                13                                |                  11                 |
+| Forecast values            |                      16                      |                                9                                |                                4                                  |                                10                                |                   0                 |
+| Forecast days              |                       7                      |                                 5                                |                                 10                               |                                 4                                |                   0                 |
+| Location                   |                geo-coordinates               |                city name, city id, geo-coordinates               |                            city name                             |                         city name or zip                         |          Provided by Station        |
+| Personal weather stations  |                      :x:                     |                        :heavy_check_mark:                        |                                :x:                               |                        :heavy_check_mark:                        |           :heavy_check_mark:        |
+| Free                       | :heavy_check_mark:                           |                        :heavy_check_mark:                        |                        :heavy_check_mark:                        | :x: (only legacy accounts)                                       |           :heavy_check_mark:        |
+| Register                   | [here](https://darksky.net/dev/register)     | [here](https://openweathermap.org/appid)                         |                    not needed                                    | [here](https://www.wunderground.com/weather/api/)                | [here](https://www.meteobridge.com) |
 
 *You can add more services by forking the project and submitting a pull request.*
 
@@ -188,6 +188,26 @@ The **location** parameter can be a city name or a zip. You can also use a stati
 ]
 ```
 
+### Meteobridge
+
+All you need is the IP address (**bridgeIP**) and admin password (**bridgePass**) of your meteobridge.  This plugin relies on the setitngs
+that are native to the meteobridge.  For a reference, head over to the **[Meteobridge](https://www.meteobridge.com)** site to setup your station.
+
+```json
+"platforms": [
+	{
+            "platform": "WeatherPlus",
+            "name": "WeatherPlus",
+            "service": "meteobridge",
+            "bridgeIP": "XX.XX.XX.XX",
+            "bridgePass": "<your admin password>",
+            "displayName": "<your custom name>",
+            "units": "us",
+			"interval": 1
+	}
+]
+```
+
 ## Example use cases
 
 - Switch on a blue light in the morning when the chance for rain is above 20% today (or white when the forecast condition is snow / yellow when it's sunny).
@@ -208,6 +228,7 @@ Many thanks go to
 - [GatoPharaoh](https://github.com/GatoPharaoh) for his interval option pull request
 - [David Werth](https://github.com/werthdavid) for integrating the OpenWeatherMap and Yahoo apis
 - [Marshall T. Rose](https://github.com/mrose17) for adding support for imperial units and the displayName parameter
+- [Mike Manzo](https://github.com/mikemanzo) for adding support for teh meteobridge
 
 This plugin is a fork of [homebridge-weather-station](https://github.com/kcharwood/homebridge-weather-station) which is no longer being developed. That one is a fork of [homebridge-wunderground](https://www.npmjs.com/package/homebridge-wunderground).
 
@@ -216,3 +237,4 @@ This plugin is a fork of [homebridge-weather-station](https://github.com/kcharwo
 - [Powered by Weather Underground](https://www.wunderground.com/)
 - [Powered by OpenWeatherMap](https://openweathermap.org/)
 - [Powered by Yahoo](https://yahoo.com/)
+- [Powered by Meteobridge](https://meteobridge.com/)
