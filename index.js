@@ -3,6 +3,7 @@ const darksky = require('./api/darksky'),
 	weatherunderground = require('./api/weatherunderground'),
 	openweathermap = require('./api/openweathermap'),
 	yahoo = require('./api/yahoo'),
+	meteobridge = require('./api/meteobridge'),	// meteobridge support
 	debug = require('debug')('homebridge-weather-plus');
 
 var Service,
@@ -36,6 +37,8 @@ function WeatherStationPlatform(log, config, api) {
 	this.locationCity = config['locationCity'];
 	this.forecastDays = ('forecast' in config ? config['forecast'] : []);
 	this.language = ('language' in config ? config['language'] : 'en');
+	this.bridgeAddress = ('bridgeIP' in config ? config['bridgeIP'] : null);	// meteobridge support
+	this.bridgePassword = ('bridgePass' in config ? config['bridgePass'] : null);	// meteobridge support
 
 	// Custom Characteristics
 	CustomCharacteristic = require('./util/characteristics')(api, this.units);
@@ -61,6 +64,11 @@ function WeatherStationPlatform(log, config, api) {
         openweathermap.init(this.key, this.language, this.location, this.locationGeo, this.locationCity, log, debug);
 		this.api = openweathermap;
 	}
+	else if (service === 'meteobridge') {	// meteobridge support
+		debug("Using service Meteobridge");
+        meteobridge.init(this.bridgeAddress, this.bridgePassword, log, debug);
+		this.api = meteobridge;
+	}
 	else if (service === 'yahoo') {
 		debug("Using service Yahoo");
         yahoo.init(this.location, log, debug);
@@ -74,15 +82,21 @@ function WeatherStationPlatform(log, config, api) {
 
 WeatherStationPlatform.prototype = {
 	// Get the current condition accessory and all forecast accessories
-	accessories: function (callback) {
+	accessories: async function (callback) {
 		this.accessories = [];
-		this.accessories.push(new CurrentConditionsWeatherAccessory(this));
+
+		this.accessory = new CurrentConditionsWeatherAccessory();
+		await this.accessory.init(this);
+		this.accessories.push(this.accessory);
 
 		// Add all configured forecast days
 		for (let i = 0; i < this.forecastDays.length; i++) {
 			const day = this.forecastDays[i];
 			if (typeof day === 'number' && (day % 1) === 0 && day >= 1 && day <= this.api.forecastDays) {
-				this.accessories.push(new ForecastWeatherAccessory(this, day - 1));
+
+				this.fcstAccessory = new ForecastWeatherAccessory(this, day - 1);
+				await this.fcstAccessory.init(this);
+				this.accessories.push(this.fcstAccessory);
 			}
 			else {
 				debug("Ignoring forecast day: " + day);
@@ -177,51 +191,47 @@ WeatherStationPlatform.prototype = {
 	}
 };
 
-// ===============================
-// = Current Condition Accessory =
-// ===============================
-function CurrentConditionsWeatherAccessory(platform) {
-	this.platform = platform;
-	this.log = platform.log;
-	this.name = platform.displayName || "Now";
-
-	// Create temperature sensor service that includes temperature characteristic
-	this.currentConditionsService = new Service.TemperatureSensor(this.name);
-
-	// Fix negative temperatures not supported by homekit
-	this.currentConditionsService.getCharacteristic(Characteristic.CurrentTemperature).props.minValue = -50;
-
-	// Add additional characteristics to temperature sensor that are supported by the selected api
-	for (let i = 0; i < this.platform.api.reportCharacteristics.length; i++) {
-		const name = this.platform.api.reportCharacteristics[i];
-
-		// humidity not a custom but a general apple home kit characteristic
-		if (name === 'Humidity') {
-			this.currentConditionsService.addCharacteristic(Characteristic['CurrentRelativeHumidity']);
-		}
-		// temperature is already in the service
-		else if (name !== 'Temperature') {
-			this.currentConditionsService.addCharacteristic(CustomCharacteristic[name]);
-		}
+// ================================================================================
+// = Use the bridge settiongs ... or ...										  =
+// = Honor the original author for attribution is no data is setup in the bridge  =
+// = ==============================================================================
+async function updateAccessoryInformation(service, platform) {
+	if (platform.bridgeAddress != null && platform.bridgePassword != null) {
+		return new Promise((resolve, reject) => {
+			platform.api.bridgeSpecs(function (error, specs) {
+				if (!error) {
+					service
+						.setCharacteristic(Characteristic.Manufacturer, "smartbedded GmbH")
+						.setCharacteristic(Characteristic.Model, "Platform Type: " + specs[1])
+						.setCharacteristic(Characteristic.SerialNumber, specs[0])
+						.setCharacteristic(Characteristic.FirmwareRevision, "Meteobridge: " + specs[2])
+						.setCharacteristic(Characteristic.Name, "Meteobridge");
+					resolve(service)
+				} else {
+					service
+						.setCharacteristic(Characteristic.Manufacturer, "github.com naofireblade")
+						.setCharacteristic(Characteristic.Model, platform.api.attribution)
+						.setCharacteristic(Characteristic.SerialNumber, platform.location);
+					reject("Sorry ....")
+					return
+				}
+			});            
+		});	
+	} else {
+		service
+			.setCharacteristic(Characteristic.Manufacturer, "github.com naofireblade")
+			.setCharacteristic(Characteristic.Model, platform.api.attribution)
+			.setCharacteristic(Characteristic.SerialNumber, platform.location);
+		return
 	}
-
-	// Create information service
-	this.informationService = new Service.AccessoryInformation();
-	this.informationService
-		.setCharacteristic(Characteristic.Manufacturer, "github.com naofireblade")
-		.setCharacteristic(Characteristic.Model, this.platform.api.attribution)
-		.setCharacteristic(Characteristic.SerialNumber, this.platform.location);
-
-	// Create history service
-	this.historyService = new FakeGatoHistoryService("weather", this, {
-		storage: 'fs'
-	});
-	setTimeout(this.platform.addHistory.bind(this.platform), 10000);
-
-	// Start the weather update process
-	this.platform.updateWeather();
 }
 
+// ======================================================
+// = Current Condition Accessory 						=
+// =  Restructured a bit to allow for async/await.		=  
+// = Removed logic from constructor and added to init	=
+// ======================================================
+function CurrentConditionsWeatherAccessory() { }
 CurrentConditionsWeatherAccessory.prototype = {
 	identify: function (callback) {
 		callback();
@@ -229,58 +239,67 @@ CurrentConditionsWeatherAccessory.prototype = {
 
 	getServices: function () {
 		return [this.informationService, this.currentConditionsService, this.historyService];
+	},
+
+	updateCharacteristics: async function (service, platform) {
+		await updateAccessoryInformation(service, platform)
+			.then(function (specs) {
+				platform.log("[*Meteobridge-API*] Accessory updated with Meteobridge specifications");
+				return service;
+			})
+			.catch(function (error) {
+				platform.log("[*Meteobridge-API*] Error updating accessory with Meteobridge specifications: Error -->" + error);
+				return
+			});
+	},
+
+	init: async function (platform) {
+		this.platform = platform;
+		this.log = platform.log;
+		this.name = platform.displayName || "Now";
+		let that = this;
+	
+		// Create temperature sensor service that includes temperature characteristic
+		this.currentConditionsService = new Service.TemperatureSensor(this.name);
+	
+		// Fix negative temperatures not supported by homekit
+		this.currentConditionsService.getCharacteristic(Characteristic.CurrentTemperature).props.minValue = -50;
+	
+		// Add additional characteristics to temperature sensor that are supported by the selected api
+		for (let i = 0; i < this.platform.api.reportCharacteristics.length; i++) {
+			const name = this.platform.api.reportCharacteristics[i];
+	
+			// humidity not a custom but a general apple home kit characteristic
+			if (name === 'Humidity') {
+				this.currentConditionsService.addCharacteristic(Characteristic['CurrentRelativeHumidity']);
+			}
+			// temperature is already in the service
+			else if (name !== 'Temperature') {
+				this.currentConditionsService.addCharacteristic(CustomCharacteristic[name]);
+			}
+		}
+	
+		// Create information service
+		this.informationService = new Service.AccessoryInformation();
+		await this.updateCharacteristics(this.informationService, platform);
+	
+		// Create history service
+		this.historyService = new FakeGatoHistoryService("weather", this, {
+			storage: 'fs'
+		});
+		setTimeout(this.platform.addHistory.bind(this.platform), 10000);
+
+		// Start the weather update process
+		this.platform.updateWeather();
 	}
 };
 
-// ======================
-// = Forecast Accessory =
-// ======================
-function ForecastWeatherAccessory(platform, day) {
-	this.platform = platform;
-	this.log = platform.log;
-
-	switch (day) {
-		case 0:
-			this.name = "Today";
-			break;
-		case 1:
-			this.name = "In 1 Day";
-			break;
-		default:
-			this.name = "In " + day + " Days";
-			break;
-	}
-	if (this.platform.displayName) this.name = this.platform.displayName + ' ' + this.name;
-	this.day = day;
-
-	// Create temperature sensor service that includes temperature characteristic
-	this.forecastService = new Service.TemperatureSensor(this.name);
-
-	// Fix negative temperatures not supported by homekit
-	this.forecastService.getCharacteristic(Characteristic.CurrentTemperature).props.minValue = -50;
-
-	// Add additional characteristics to temperature sensor that are supported by the selected api
-	for (let i = 0; i < this.platform.api.forecastCharacteristics.length; i++) {
-		const name = this.platform.api.forecastCharacteristics[i];
-
-		// humidity not a custom but a general apple home kit characteristic
-		if (name === 'Humidity') {
-			this.forecastService.addCharacteristic(Characteristic['CurrentRelativeHumidity']);
-		}
-		// temperature is already in the service
-		else if (name !== 'Temperature') {
-			this.forecastService.addCharacteristic(CustomCharacteristic[name]);
-		}
-	}
-
-	// Create information service
-	this.informationService = new Service.AccessoryInformation();
-	this.informationService
-		.setCharacteristic(Characteristic.Manufacturer, "github.com naofireblade")
-		.setCharacteristic(Characteristic.Model, this.platform.api.attribution)
-		.setCharacteristic(Characteristic.SerialNumber, this.platform.location);
-}
-
+// ======================================================
+// = Forecast Accessory 								=
+// = Restructured a bit to allow for async/await.		=  
+// = Removed logic from constructor and added to init	=
+// ======================================================
+function ForecastWeatherAccessory() { }
 ForecastWeatherAccessory.prototype = {
 	identify: function (callback) {
 		callback();
@@ -288,5 +307,48 @@ ForecastWeatherAccessory.prototype = {
 
 	getServices: function () {
 		return [this.informationService, this.forecastService];
+	},
+
+	init: async function(platform, day) {
+		this.platform = platform;
+		this.log = platform.log;
+	
+		switch (day) {
+			case 0:
+				this.name = "Today";
+				break;
+			case 1:
+				this.name = "In 1 Day";
+				break;
+			default:
+				this.name = "In " + day + " Days";
+				break;
+		}
+		if (this.platform.displayName) this.name = this.platform.displayName + ' ' + this.name;
+		this.day = day;
+	
+		// Create temperature sensor service that includes temperature characteristic
+		this.forecastService = new Service.TemperatureSensor(this.name);
+	
+		// Fix negative temperatures not supported by homekit
+		this.forecastService.getCharacteristic(Characteristic.CurrentTemperature).props.minValue = -50;
+	
+		// Add additional characteristics to temperature sensor that are supported by the selected api
+		for (let i = 0; i < this.platform.api.forecastCharacteristics.length; i++) {
+			const name = this.platform.api.forecastCharacteristics[i];
+	
+			// humidity not a custom but a general apple home kit characteristic
+			if (name === 'Humidity') {
+				this.forecastService.addCharacteristic(Characteristic['CurrentRelativeHumidity']);
+			}
+			// temperature is already in the service
+			else if (name !== 'Temperature') {
+				this.forecastService.addCharacteristic(CustomCharacteristic[name]);
+			}
+		}
+	
+		// Create information service
+		this.informationService = new Service.AccessoryInformation();
+		await this.updateCharacteristics(this.informationService, platform);
 	}
 };
