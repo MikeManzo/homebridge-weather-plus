@@ -67,15 +67,15 @@ With the eve app you can view the history for
 
 This plugin supports multiple weather services. Each has it's own advantages. The following table shows a comparison to help you choosing one.
 
-|                            |            Dark Sky (recommended)            |                   OpenWeatherMap                                 |                            Yahoo                                 |                   Weather Underground (legacy)                   |              Meteobridge            |
-|----------------------------|:--------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------:|:-----------------------------------:|
-| Current observation values |                      15                      |                                7                                 |                                10                                |                                13                                |                  11                 |
-| Forecast values            |                      16                      |                                9                                |                                4                                  |                                10                                |                   0                 |
-| Forecast days              |                       7                      |                                 5                                |                                 10                               |                                 4                                |                   0                 |
-| Location                   |                geo-coordinates               |                city name, city id, geo-coordinates               |                            city name                             |                         city name or zip                         |          Provided by Station        |
-| Personal weather stations  |                      :x:                     |                        :heavy_check_mark:                        |                                :x:                               |                        :heavy_check_mark:                        |           :heavy_check_mark:        |
-| Free                       | :heavy_check_mark:                           |                        :heavy_check_mark:                        |                        :heavy_check_mark:                        | :x: (only legacy accounts)                                       |           :heavy_check_mark:        |
-| Register                   | [here](https://darksky.net/dev/register)     | [here](https://openweathermap.org/appid)                         |                    not needed                                    | [here](https://www.wunderground.com/weather/api/)                | [here](https://www.meteobridge.com) |
+|                            |            Dark Sky (recommended)            |                   OpenWeatherMap                                 |                            Yahoo                                 |                   Weather Underground (legacy)                   |              Meteobridge            |        Meteohub     |
+|----------------------------|:--------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------:|:-----------------------------------:|:-------------------:|
+| Current observation values |                      15                      |                                7                                 |                                10                                |                                13                                |                  11                 |	       9         |
+| Forecast values            |                      16                      |                                9                                |                                4                                  |                                10                                |                   0                 |           0         |
+| Forecast days              |                       7                      |                                 5                                |                                 10                               |                                 4                                |                   0                 |           0         |
+| Location                   |                geo-coordinates               |                city name, city id, geo-coordinates               |                            city name                             |                         city name or zip                         |          Provided by Station        | Provided by Station |  
+| Personal weather stations  |                      :x:                     |                        :heavy_check_mark:                        |                                :x:                               |                        :heavy_check_mark:                        |           :heavy_check_mark:        |  :heavy_check_mark: |
+| Free                       | :heavy_check_mark:                           |                        :heavy_check_mark:                        |                        :heavy_check_mark:                        | :x: (only legacy accounts)                                       |           :heavy_check_mark:        |  :heavy_check_mark: |
+| Register                   | [here](https://darksky.net/dev/register)     | [here](https://openweathermap.org/appid)                         |                    Not needed                                    | [here](https://www.wunderground.com/weather/api/)                | [here](https://www.meteobridge.com) |       Not Needed    |
 
 *You can add more services by forking the project and submitting a pull request.*
 
@@ -203,6 +203,26 @@ that are native to the meteobridge.  For a reference, head over to the **[Meteob
             "bridgePass": "<your admin password>",
             "displayName": "<your custom name>",
             "units": "us",
+			"interval": 1
+	}
+]
+```
+
+### Meteohub
+
+All you need is the hub address (**hubAddress**) and hub port (**hubPort**) of your meteohub.  This plugin relies on the setitngs
+that are native to the meteohub.  For a reference, head over to the **[Meteohub](https://wiki.meteohub.de/Introduction)** site to setup your station.
+
+```json
+"platforms": [
+	{
+            "platform": "WeatherPlus",
+            "name": "WeatherPlus",
+            "service": "meteohub",
+            "hubAddress": "your.hub.address",
+            "hubPort": "ABCD",
+            "displayName": "<Your Custom Name>",
+			"units": "us",
 			"interval": 1
 	}
 ]
