@@ -4,6 +4,7 @@ const darksky = require('./api/darksky'),
 	openweathermap = require('./api/openweathermap'),
 	yahoo = require('./api/yahoo'),
 	meteobridge = require('./api/meteobridge'),	// meteobridge support
+	meteohub = require('./api/meteohub'),	// meteohub support
 	debug = require('debug')('homebridge-weather-plus');
 
 var Service,
@@ -39,13 +40,16 @@ function WeatherStationPlatform(log, config, api) {
 	this.language = ('language' in config ? config['language'] : 'en');
 	this.bridgeAddress = ('bridgeIP' in config ? config['bridgeIP'] : null);	// meteobridge support
 	this.bridgePassword = ('bridgePass' in config ? config['bridgePass'] : null);	// meteobridge support
+	this.hubAddress = ('hubAddress' in config ? config['hubAddress'] : null);	// meteohub support
+	this.hubPort = ('hubPort' in config ? config['hubPort'] : null);	// meteohub support
+	this.weatherService = config['service'].toLowerCase().replace(/\s/g, '');
 
 	// Custom Characteristics
 	CustomCharacteristic = require('./util/characteristics')(api, this.units);
 
 	// API Service
-	let service = config['service'].toLowerCase().replace(/\s/g, '');
-	if (service === 'darksky') {
+//	let service = config['service'].toLowerCase().replace(/\s/g, '');
+	if (this.weatherService === 'darksky') {
 		debug("Using service dark sky");
 		// TODO adapt unit of characteristics
 		if (this.location) {
@@ -54,22 +58,27 @@ function WeatherStationPlatform(log, config, api) {
 		darksky.init(this.key, this.language, this.locationGeo, log, debug);
 		this.api = darksky;
 	}
-	else if (service === 'weatherunderground') {
+	else if (this.weatherService === 'weatherunderground') {
 		debug("Using service weather underground");
 		weatherunderground.init(this.key, this.location, log, debug);
 		this.api = weatherunderground;
 	}
-	else if (service === 'openweathermap') {
+	else if (this.weatherService === 'openweathermap') {
 		debug("Using service OpenWeatherMap");
         openweathermap.init(this.key, this.language, this.location, this.locationGeo, this.locationCity, log, debug);
 		this.api = openweathermap;
 	}
-	else if (service === 'meteobridge') {	// meteobridge support
+	else if (this.weatherService === 'meteobridge') {	// meteobridge support
 		debug("Using service Meteobridge");
         meteobridge.init(this.bridgeAddress, this.bridgePassword, log, debug);
 		this.api = meteobridge;
 	}
-	else if (service === 'yahoo') {
+	else if (this.weatherService === 'meteohub') {	// meteohub support
+		debug("Using service Meteohub");
+        meteohub.init(this.hubAddress, this.hubPort, log, debug);
+		this.api = meteohub;
+	}
+	else if (this.weatherService === 'yahoo') {
 		debug("Using service Yahoo");
         yahoo.init(this.location, log, debug);
 		this.api = yahoo;
@@ -147,6 +156,8 @@ WeatherStationPlatform.prototype = {
 						}
 					}
 				}
+			} else {
+				that.log.error("Error updating service:" + error);
 			}
 		});
 		setTimeout(this.updateWeather.bind(this), (this.interval) * 60 * 1000);
@@ -200,12 +211,23 @@ async function updateAccessoryInformation(service, platform) {
 		return new Promise((resolve, reject) => {
 			platform.api.bridgeSpecs(function (error, specs) {
 				if (!error) {
-					service
+					if (platform.weatherService === 'meteohub') {
+						service
+						.setCharacteristic(Characteristic.Manufacturer, "smartbedded GmbH")
+						.setCharacteristic(Characteristic.Model, "Platform Type: " + specs[0])
+						.setCharacteristic(Characteristic.SerialNumber, specs[2])
+						.setCharacteristic(Characteristic.FirmwareRevision, "Meteohub: " + specs[1])
+						.setCharacteristic(Characteristic.Name, "Meteohub");
+					} else if (platform.weatherService === 'meteobridge') {
+						service
 						.setCharacteristic(Characteristic.Manufacturer, "smartbedded GmbH")
 						.setCharacteristic(Characteristic.Model, "Platform Type: " + specs[1])
 						.setCharacteristic(Characteristic.SerialNumber, specs[0])
 						.setCharacteristic(Characteristic.FirmwareRevision, "Meteobridge: " + specs[2])
 						.setCharacteristic(Characteristic.Name, "Meteobridge");
+					} else {
+						platform.log("*** Unknnown Service ***")						
+					}
 					resolve(service)
 				} else {
 					service
@@ -244,11 +266,22 @@ CurrentConditionsWeatherAccessory.prototype = {
 	updateCharacteristics: async function (service, platform) {
 		await updateAccessoryInformation(service, platform)
 			.then(function (specs) {
-				platform.log("[*Meteobridge-API*] Accessory updated with Meteobridge specifications");
+				if (platform.weatherService === 'meteohub') {
+					platform.log("[Meteohub] Accessory updated with Meteohub specifications");						
+				} else if (platform.weatherService === 'meteobridge') {
+					platform.log("[Meteobridge] Accessory updated with Meteobridge specifications");			
+				}
+				else {
+					platform.error("Accessory not updated with any specifications");	
+				}
 				return service;
 			})
 			.catch(function (error) {
-				platform.log("[*Meteobridge-API*] Error updating accessory with Meteobridge specifications: Error -->" + error);
+				if (platform.weatherService === 'meteohub') {
+					platform.log("[Meteohub] Error updating accessory with Meteohub specifications: Error -->" + error);
+				} else if (this.weatherService === 'meteobridge') {
+					platform.log("[Meteobridge] Error updating accessory with Meteobridge specifications: Error -->" + error);			
+				}
 				return
 			});
 	},
